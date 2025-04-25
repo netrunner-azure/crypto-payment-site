@@ -28,26 +28,6 @@
       }
     }
 
-    async function markAsPaid(id) {
-      console.log("🔁 Sending payment for:", id);
-
-      const res = await fetch('/mark-paid', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id })
-      });
-
-      const result = await res.json();
-      console.log("📬 Response:", result);
-
-      if (result.success) {
-        document.getElementById(`status-${id}`).textContent = '✅ Paid';
-        alert('✅ Marked as paid and email sent!');
-      } else {
-        alert('❌ Failed to mark as paid.');
-      }
-    }
-
     async function fetchUploads() {
       const res = await fetch('/uploads-data');
       const data = await res.json();
@@ -74,8 +54,29 @@
       });
     }
 
-    fetchUploads(); // Load on page open
+    async function markAsPaid(id) {
+      console.log("🔁 Sending payment for:", id);
+
+      const res = await fetch('/mark-paid', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      });
+
+      const result = await res.json();
+      console.log("📬 Response:", result);
+
+      if (result.success) {
+        document.getElementById(`status-${id}`).textContent = '✅ Paid';
+        alert('✅ Marked as paid and email sent!');
+      } else {
+        alert('❌ Failed to mark as paid.');
+      }
+    }
+
+    fetchUploads(); // Load when page opens
   </script>
 </body>
 </html>
+
 
