@@ -1,24 +1,26 @@
 const express = require('express');
 const multer = require('multer');
 const nodemailer = require('nodemailer');
+const { MongoClient, ObjectId } = require('mongodb');
+const fs = require('fs');
+const path = require('path');
+
 const app = express();
 const PORT = 3000;
-const { MongoClient, ObjectId } = require('mongodb');
 
-const uri = process.env.MONGODB_URI; // ✅ Use environment variable here!
+const uri = process.env.MONGODB_URI;
 const client = new MongoClient(uri);
 
 let ordersCollection;
 
 client.connect()
   .then(() => {
-    const db = client.db('dopebois'); // this will create the db automatically if not exist
+    const db = client.db('dopebois');
     ordersCollection = db.collection('orders');
     console.log("📦 Connected to MongoDB Atlas");
   })
   .catch(err => console.error("❌ MongoDB connection error:", err));
 
-  
 // File storage
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -62,20 +64,25 @@ app.get('/uploads-data', async (req, res) => {
   res.json(allOrders);
 });
 
-// Mark as paid and send fake email
+// Mark as paid
 app.post('/mark-paid', async (req, res) => {
   const id = req.body.id;
+  console.log("📬 Received mark-paid request for ID:", id);
 
   try {
     const order = await ordersCollection.findOne({ _id: new ObjectId(id) });
-    if (!order) return res.json({ success: false });
+    if (!order) {
+      console.log("⚠️ Order not found");
+      return res.json({ success: false });
+    }
 
     await ordersCollection.updateOne(
       { _id: new ObjectId(id) },
       { $set: { paid: true } }
     );
 
-    // Create fake test account
+    console.log("✅ Order marked as paid in DB");
+
     const testAccount = await nodemailer.createTestAccount();
 
     const transporter = nodemailer.createTransport({
@@ -95,23 +102,46 @@ app.post('/mark-paid', async (req, res) => {
       html: `
         <h2>🧾 Invoice - Crypto Order Confirmation</h2>
         <p>Thank you for your payment!</p>
-        <table border="1" cellpadding="10">
-          <tr><th>Item</th><td>Image Review Service</td></tr>
-          <tr><th>Email</th><td>${order.email}</td></tr>
-          <tr><th>File</th><td>${order.filename}</td></tr>
-          <tr><th>Status</th><td><strong>✅ Paid</strong></td></tr>
-        </table>
-        <br>
-        <p>We'll be in touch soon with your final results.</p>
-        <small>This is an automated confirmation. No reply needed.</small>
+        <p><strong>Email:</strong> ${order.email}</p>
+        <p><strong>File:</strong> ${order.filename}</p>
+        <p><strong>Status:</strong> ✅ Paid</p>
+        <small>This is a test email sent via Ethereal.</small>
       `
     });
 
-    console.log("📨 Email sent:", nodemailer.getTestMessageUrl(info));
+    console.log("📨 Test email sent:", nodemailer.getTestMessageUrl(info));
     res.json({ success: true });
-
   } catch (err) {
-    console.error("❌ Error marking as paid:", err);
+    console.error("❌ Error in /mark-paid:", err);
+    res.json({ success: false });
+  }
+});
+
+// 🧹 Delete order and image
+app.post('/delete-order', async (req, res) => {
+  const { id, filename } = req.body;
+
+  try {
+    const order = await ordersCollection.findOne({ _id: new ObjectId(id) });
+    if (!order) return res.json({ success: false });
+
+    // Try delete image
+    const filePath = path.join(__dirname, 'uploads', filename);
+    fs.unlink(filePath, (err) => {
+      if (err) {
+        console.warn("⚠️ Couldn't delete image:", filePath);
+      } else {
+        console.log("🧹 Image deleted:", filePath);
+      }
+    });
+
+    // Delete from DB
+    await ordersCollection.deleteOne({ _id: new ObjectId(id) });
+    console.log("🗑️ Deleted order:", id);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ Error deleting order:", err);
     res.json({ success: false });
   }
 });
@@ -120,6 +150,8 @@ app.post('/mark-paid', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
 });
+
+
 
 
 
