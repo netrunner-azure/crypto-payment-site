@@ -3,9 +3,22 @@ const multer = require('multer');
 const nodemailer = require('nodemailer');
 const app = express();
 const PORT = 3000;
+const { MongoClient, ObjectId } = require('mongodb');
 
-let orders = []; // In-memory store
+const uri = process.env.MONGODB_URI; // ✅ Use environment variable here!
+const client = new MongoClient(uri);
 
+let ordersCollection;
+
+client.connect()
+  .then(() => {
+    const db = client.db('dopebois'); // this will create the db automatically if not exist
+    ordersCollection = db.collection('orders');
+    console.log("📦 Connected to MongoDB Atlas");
+  })
+  .catch(err => console.error("❌ MongoDB connection error:", err));
+
+  
 // File storage
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -24,7 +37,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
 // Upload form
-app.post('/upload', upload.single('image'), (req, res) => {
+app.post('/upload', upload.single('image'), async (req, res) => {
   const email = req.body.email;
   const image = req.file;
 
@@ -36,7 +49,7 @@ app.post('/upload', upload.single('image'), (req, res) => {
     paid: false
   };
 
-  orders.push(order);
+  await ordersCollection.insertOne(order);
   console.log(`📧 Email: ${email}`);
   console.log(`🖼️ Image saved as: ${image.filename}`);
 
@@ -44,57 +57,63 @@ app.post('/upload', upload.single('image'), (req, res) => {
 });
 
 // View uploads in admin
-app.get('/uploads-data', (req, res) => {
-  res.json(orders);
+app.get('/uploads-data', async (req, res) => {
+  const allOrders = await ordersCollection.find().toArray();
+  res.json(allOrders);
 });
 
 // Mark as paid and send fake email
 app.post('/mark-paid', async (req, res) => {
-  const index = req.body.index;
-  const order = orders[index];
+  const id = req.body.id;
 
-  if (!order) return res.json({ success: false });
+  try {
+    const order = await ordersCollection.findOne({ _id: new ObjectId(id) });
+    if (!order) return res.json({ success: false });
 
-  order.paid = true;
+    await ordersCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { paid: true } }
+    );
 
-  // Create fake test account
-  const testAccount = await nodemailer.createTestAccount();
+    // Create fake test account
+    const testAccount = await nodemailer.createTestAccount();
 
-  // Set up transporter using Ethereal
-  const transporter = nodemailer.createTransport({
-    host: testAccount.smtp.host,
-    port: testAccount.smtp.port,
-    secure: testAccount.smtp.secure, // true for 465, false for other ports
-    auth: {
-      user: testAccount.user,
-      pass: testAccount.pass
-    }
-  });
+    const transporter = nodemailer.createTransport({
+      host: testAccount.smtp.host,
+      port: testAccount.smtp.port,
+      secure: testAccount.smtp.secure,
+      auth: {
+        user: testAccount.user,
+        pass: testAccount.pass
+      }
+    });
 
-  // Send fake email
-const info = await transporter.sendMail({
-    from: '"Crypto Service" <noreply@crypto.com>',
-    to: order.email,
-    subject: 'Your Order is Paid ✅',
-    html: `
-      <h2>🧾 Invoice - Crypto Order Confirmation</h2>
-      <p>Thank you for your payment!</p>
-      <table border="1" cellpadding="10">
-        <tr><th>Item</th><td>Image Review Service</td></tr>
-        <tr><th>Email</th><td>${order.email}</td></tr>
-        <tr><th>File</th><td>${order.filename}</td></tr>
-        <tr><th>Status</th><td><strong>✅ Paid</strong></td></tr>
-      </table>
-      <br>
-      <p>We'll be in touch soon with your final results.</p>
-      <small>This is an automated confirmation. No reply needed.</small>
-    `
-  });
-  
+    const info = await transporter.sendMail({
+      from: '"Crypto Service" <noreply@crypto.com>',
+      to: order.email,
+      subject: 'Your Order is Paid ✅',
+      html: `
+        <h2>🧾 Invoice - Crypto Order Confirmation</h2>
+        <p>Thank you for your payment!</p>
+        <table border="1" cellpadding="10">
+          <tr><th>Item</th><td>Image Review Service</td></tr>
+          <tr><th>Email</th><td>${order.email}</td></tr>
+          <tr><th>File</th><td>${order.filename}</td></tr>
+          <tr><th>Status</th><td><strong>✅ Paid</strong></td></tr>
+        </table>
+        <br>
+        <p>We'll be in touch soon with your final results.</p>
+        <small>This is an automated confirmation. No reply needed.</small>
+      `
+    });
 
-  console.log(`📨 Email sent: ${nodemailer.getTestMessageUrl(info)}`);
+    console.log("📨 Email sent:", nodemailer.getTestMessageUrl(info));
+    res.json({ success: true });
 
-  res.json({ success: true });
+  } catch (err) {
+    console.error("❌ Error marking as paid:", err);
+    res.json({ success: false });
+  }
 });
 
 // Start server

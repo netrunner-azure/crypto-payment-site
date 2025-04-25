@@ -9,45 +9,53 @@
   <div id="orders"></div>
 
   <script>
-    async function fetchUploads() {
-      const res = await fetch('/uploads-data');
-      const data = await res.json();
-      const container = document.getElementById('orders');
+    <script>
+  async function fetchUploads() {
+    const res = await fetch('/uploads-data');
+    const data = await res.json();
+    const container = document.getElementById('orders');
 
-      container.innerHTML = '';
+    container.innerHTML = '';
 
-      if (data.length === 0) {
-        container.innerHTML = '<p>No uploads yet.</p>';
-        return;
-      }
-
-      data.forEach((item, index) => {
-        const div = document.createElement('div');
-        div.innerHTML = `
-          <hr>
-          <p><strong>Email:</strong> ${item.email}</p>
-          <img src="/uploads/${item.filename}" width="200"><br>
-          <button onclick="markAsPaid(${index})">Mark as Paid</button>
-          <p id="status-${index}">${item.paid ? '✅ Paid' : '❌ Not Paid'}</p>
-        `;
-        container.appendChild(div);
-      });
+    if (data.length === 0) {
+      container.innerHTML = '<p>No uploads yet.</p>';
+      return;
     }
 
-    async function markAsPaid(index) {
-      const res = await fetch('/mark-paid', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ index })
-      });
+    data.forEach((item) => {
+      const div = document.createElement('div');
+      div.innerHTML = `
+        <hr>
+        <p><strong>Email:</strong> ${item.email}</p>
+        <img src="/uploads/${item.filename}" width="200"><br>
+        <button onclick="markAsPaid('${item._id}')">Mark as Paid</button>
+        <p id="status-${item._id}">${item.paid ? '✅ Paid' : '❌ Not Paid'}</p>
+      `;
+      container.appendChild(div);
+    });
+  }
 
-      const data = await res.json();
-      if (data.success) {
-        document.getElementById(`status-${index}`).innerText = '✅ Paid';
-      }
+  async function markAsPaid(id) {
+    console.log("🔁 Sending payment for:", id);
+
+    const res = await fetch('/mark-paid', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    });
+
+    const result = await res.json();
+    console.log("📬 Response:", result);
+
+    if (result.success) {
+      document.getElementById(`status-${id}`).textContent = '✅ Paid';
+      alert('✅ Marked as paid and email sent!');
+    } else {
+      alert('❌ Failed to mark as paid.');
     }
+  }
 
-    fetchUploads();
-  </script>
+  fetchUploads(); // Load on page open
+</script>
 </body>
 </html>
