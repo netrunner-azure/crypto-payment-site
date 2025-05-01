@@ -9,14 +9,14 @@
   <div id="orders"></div>
 
   <script>
-    async function deleteOrder(id, filename) {
+    async function deleteOrder(id) {
       const confirmed = confirm("Are you sure you want to delete this order?");
       if (!confirmed) return;
 
       const res = await fetch('/delete-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, filename })
+        body: JSON.stringify({ id }) // removed filename
       });
 
       const result = await res.json();
@@ -45,9 +45,9 @@
         div.innerHTML = `
           <hr>
           <p><strong>Email:</strong> ${item.email}</p>
-          <img src="/uploads/${item.filename}" width="200"><br>
+          <img src="${item.cloudinaryUrl}" width="200" alt="Uploaded Image"><br>
           <button onclick="markAsPaid('${item._id}')">Mark as Paid</button>
-          <button onclick="deleteOrder('${item._id}', '${item.filename}')">🗑️ Delete</button>
+          <button onclick="deleteOrder('${item._id}')">🗑️ Delete</button>
           <p id="status-${item._id}">${item.paid ? '✅ Paid' : '❌ Not Paid'}</p>
         `;
         container.appendChild(div);
@@ -78,5 +78,9 @@
   </script>
 </body>
 </html>
+
+
+
+
 
 
