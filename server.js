@@ -8,7 +8,6 @@ const { MongoClient, ObjectId } = require('mongodb');
 const path = require('path');
 
 const app = express();
-const PORT = 3000;
 
 // Cloudinary config
 cloudinary.config({
